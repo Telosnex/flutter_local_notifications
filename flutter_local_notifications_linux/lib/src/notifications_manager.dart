@@ -18,6 +18,7 @@ import 'model/sound.dart';
 import 'model/timeout.dart';
 import 'notification_info.dart';
 import 'platform_info.dart';
+import 'portal.dart';
 import 'storage.dart';
 
 /// Linux notification manager and client
@@ -50,6 +51,13 @@ class LinuxNotificationManager {
 
   bool _initialized = false;
 
+  /// The notification portal, in a Flatpak sandbox. The sandbox has no
+  /// access to org.freedesktop.Notifications; the portal takes its place.
+  NotificationPortal? _portal;
+
+  @visibleForTesting
+  set portal(NotificationPortal? value) => _portal = value;
+
   /// Initializes the manager.
   /// Call this method on application before using the manager further.
   Future<bool> initialize(
@@ -62,6 +70,13 @@ class LinuxNotificationManager {
     _initialized = true;
     _initializationSettings = initializationSettings;
     _onDidReceiveNotificationResponse = onDidReceiveNotificationResponse;
+    _portal ??= NotificationPortal.inSandbox ? NotificationPortal() : null;
+    if (_portal != null) {
+      _platformData = await _platformInfo.getAll();
+      await _storage.forceReloadCache();
+      _subscribePortalSignals();
+      return _initialized;
+    }
     _dbus.build(
       destination: _DBusInterfaceSpec.destination,
       path: _DBusInterfaceSpec.path,
@@ -84,6 +99,39 @@ class LinuxNotificationManager {
     final LinuxNotificationInfo? prevNotify = await _storage.getById(id);
     final LinuxNotificationIcon? defaultIcon =
         _initializationSettings.defaultIcon;
+    if (_portal != null) {
+      final LinuxNotificationIcon? icon = details?.icon ?? defaultIcon;
+      await _portal!.add(
+        _portalId(id),
+        title: title ?? '',
+        body: body ?? '',
+        defaultAction: _kDefaultActionName,
+        buttons: <String, String>{
+          for (final LinuxNotificationAction a
+              in details?.actions ?? const <LinuxNotificationAction>[])
+            a.key: a.label,
+        },
+        // The portal cannot read the app's files; it shows the app icon
+        // unless the icon is a theme icon name.
+        themedIcon: icon?.type == LinuxIconType.theme
+            ? icon!.content as String
+            : null,
+        urgent: details?.urgency == LinuxNotificationUrgency.critical,
+      );
+      await _storage.insert(
+        LinuxNotificationInfo(
+          id: id,
+          systemId: id,
+          payload: payload,
+          actions: <LinuxNotificationActionInfo>[
+            for (final LinuxNotificationAction a
+                in details?.actions ?? const <LinuxNotificationAction>[])
+              LinuxNotificationActionInfo(key: a.key),
+          ],
+        ),
+      );
+      return;
+    }
 
     final DBusMethodSuccessResponse result = await _dbus.callMethod(
       _DBusInterfaceSpec.destination,
@@ -231,7 +279,9 @@ class LinuxNotificationManager {
   Future<void> cancel(int id) async {
     final LinuxNotificationInfo? notify = await _storage.getById(id);
     await _storage.removeById(id);
-    if (notify != null) {
+    if (_portal != null) {
+      await _portal!.remove(_portalId(id));
+    } else if (notify != null) {
       await _dbusCancel(notify.systemId);
     }
   }
@@ -242,13 +292,33 @@ class LinuxNotificationManager {
     final List<int> idList = <int>[];
     for (final LinuxNotificationInfo notify in notifyList) {
       idList.add(notify.id);
-      await _dbusCancel(notify.systemId);
+      if (_portal != null) {
+        await _portal!.remove(_portalId(notify.id));
+      } else {
+        await _dbusCancel(notify.systemId);
+      }
     }
     await _storage.removeByIdList(idList);
   }
 
   /// Returns the system notification server capabilities.
   Future<LinuxServerCapabilities> getCapabilities() async {
+    if (_portal != null) {
+      // What the portal supports for every desktop.
+      return const LinuxServerCapabilities(
+        otherCapabilities: <String>{},
+        body: true,
+        bodyHyperlinks: false,
+        bodyImages: false,
+        bodyMarkup: false,
+        iconMulti: false,
+        iconStatic: true,
+        persistence: false,
+        sound: false,
+        actions: true,
+        actionIcons: false,
+      );
+    }
     final DBusMethodSuccessResponse result = await _dbus.callMethod(
       _DBusInterfaceSpec.destination,
       _DBusMethodsSpec.getCapabilities,
@@ -312,6 +382,43 @@ class LinuxNotificationManager {
       case LinuxIconType.filePath:
         return icon.content as String;
     }
+  }
+
+  String _portalId(int id) => 'flutter_local_notifications_$id';
+
+  void _subscribePortalSignals() {
+    _portal!.actionInvoked.listen(((String, String) event) async {
+      final (String portalId, String actionKey) = event;
+      const String prefix = 'flutter_local_notifications_';
+      if (!portalId.startsWith(prefix)) {
+        return;
+      }
+      final int? id = int.tryParse(portalId.substring(prefix.length));
+      final LinuxNotificationInfo? notify = id == null
+          ? null
+          : await _storage.getById(id);
+      if (notify == null) {
+        return;
+      }
+      // The portal withdraws the notification after an action.
+      await _storage.removeById(notify.id);
+      _onDidReceiveNotificationResponse?.call(
+        actionKey == _kDefaultActionName
+            ? NotificationResponse(
+                id: notify.id,
+                payload: notify.payload,
+                notificationResponseType:
+                    NotificationResponseType.selectedNotification,
+              )
+            : NotificationResponse(
+                id: notify.id,
+                actionId: actionKey,
+                payload: notify.payload,
+                notificationResponseType:
+                    NotificationResponseType.selectedNotificationAction,
+              ),
+      );
+    });
   }
 
   /// Subscribe to the signals for actions and closing notifications.
