@@ -1,0 +1,21 @@
+name: flutter_local_notifications_linux_example
+description: Integration tests of flutter_local_notifications_linux on Linux.
+publish_to: none
+
+environment:
+  sdk: ^3.12.0
+  flutter: ">=3.44.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_local_notifications_linux:
+    path: ../
+
+dev_dependencies:
+  dbus: ">=0.7.8 <0.9.0"
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter

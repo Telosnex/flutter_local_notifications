@@ -1,7 +1,6 @@
 @TestOn('linux')
 library;
 
-import 'dart:async';
 import 'dart:io';
 
 import 'package:dbus/dbus.dart';
