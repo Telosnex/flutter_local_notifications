@@ -31,9 +31,13 @@ jobs:
           persist-credentials: false
       - uses: Telosnex/telosnex_ci_tools/actions/setup-flutter@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
       - uses: Telosnex/telosnex_ci_tools/actions/lint@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
-      # Only the package this CI tests: the monorepo has other packages.
-      - run: git ls-files 'flutter_local_notifications_linux/*.dart' | xargs dart format --output=none --set-exit-if-changed
       - run: flutter pub get
+        working-directory: flutter_local_notifications_linux
+      - run: flutter pub get
+        working-directory: flutter_local_notifications_linux/example
+      # Only the package this CI tests: the monorepo has other packages. Run
+      # in the package, so dart format reads its language version.
+      - run: git ls-files '*.dart' | xargs dart format --output=none --set-exit-if-changed
         working-directory: flutter_local_notifications_linux
       - run: flutter analyze --fatal-infos
         working-directory: flutter_local_notifications_linux
