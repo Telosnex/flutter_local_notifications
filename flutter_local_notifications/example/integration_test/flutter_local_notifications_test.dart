@@ -28,11 +28,15 @@ void main() {
     setUpAll(() async {
       flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
     });
-    testWidgets('can initialise', (WidgetTester tester) async {
-      final bool? initialised = await flutterLocalNotificationsPlugin
-          .initialize(settings: initializationSettings);
-      expect(initialised, isTrue);
-    });
+    // initialize() returns whether notifications were authorized on iOS and
+    // macOS.
+    group('when notifications are authorized', () {
+      testWidgets('can initialise', (WidgetTester tester) async {
+        final bool? initialised = await flutterLocalNotificationsPlugin
+            .initialize(settings: initializationSettings);
+        expect(initialised, isTrue);
+      });
+    }, skip: Platform.isMacOS ? _macOSNotAuthorized : false);
 
     testWidgets(
       'initialize with settings equal to null for the targeting platform '
@@ -50,7 +54,9 @@ void main() {
             'iOS settings must be set when targeting iOS platform.',
           );
         } else if (Platform.isLinux) {
-          equals('Linux settings must be set when targeting Linux platform.');
+          errorMessageMatcher = equals(
+            'Linux settings must be set when targeting Linux platform.',
+          );
         } else if (Platform.isMacOS) {
           errorMessageMatcher = equals(
             'macOS settings must be set when targeting macOS platform.',
@@ -151,4 +157,106 @@ void main() {
       );
     });
   });
+
+  // CI grants the permission before the test: `pm grant ... POST_NOTIFICATIONS`
+  // on Android, applesimutils on the iOS simulator.
+  group('show() and cancel()', () {
+    setUpAll(() async {
+      flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+      await flutterLocalNotificationsPlugin.initialize(
+        settings: initializationSettings,
+      );
+    });
+
+    // On every platform: the calls go through the plugin without an error.
+    testWidgets('show() and cancel() complete', (WidgetTester tester) async {
+      await flutterLocalNotificationsPlugin.show(
+        id: 1,
+        title: 'Integration test',
+        body: 'show() and cancel() complete',
+        notificationDetails: _details,
+      );
+      await flutterLocalNotificationsPlugin.cancel(id: 1);
+    });
+
+    group('when notifications are authorized', () {
+      testWidgets('the notification permission is granted', (
+        WidgetTester tester,
+      ) async {
+        if (Platform.isAndroid) {
+          final AndroidFlutterLocalNotificationsPlugin android =
+              flutterLocalNotificationsPlugin
+                  .resolvePlatformSpecificImplementation<
+                    AndroidFlutterLocalNotificationsPlugin
+                  >()!;
+          expect(await android.requestNotificationsPermission(), isTrue);
+          expect(await android.areNotificationsEnabled(), isTrue);
+        } else if (Platform.isIOS) {
+          final IOSFlutterLocalNotificationsPlugin ios =
+              flutterLocalNotificationsPlugin
+                  .resolvePlatformSpecificImplementation<
+                    IOSFlutterLocalNotificationsPlugin
+                  >()!;
+          expect(
+            await ios.requestPermissions(alert: true, badge: true, sound: true),
+            isTrue,
+          );
+        }
+      });
+
+      testWidgets('a shown notification is active until it is cancelled', (
+        WidgetTester tester,
+      ) async {
+        const int id = 2;
+        await flutterLocalNotificationsPlugin.show(
+          id: id,
+          title: 'Integration test',
+          body: 'A shown notification is active until it is cancelled',
+          notificationDetails: _details,
+        );
+        await _waitForActive(flutterLocalNotificationsPlugin, id, true);
+        await flutterLocalNotificationsPlugin.cancel(id: id);
+        await _waitForActive(flutterLocalNotificationsPlugin, id, false);
+      });
+    }, skip: Platform.isMacOS ? _macOSNotAuthorized : false);
+  });
+}
+
+/// Why the notification tests are skipped on macOS.
+const String _macOSNotAuthorized =
+    'On macOS, usernoted rejects the ad-hoc signed test app ("Failed to '
+    'validate ... for use with identifier"), so it is never authorized: '
+    'initialize() returns false and nothing is delivered. Showing needs an '
+    'app signed with a development team.';
+
+const NotificationDetails _details = NotificationDetails(
+  android: AndroidNotificationDetails(
+    'integration_test',
+    'Integration test',
+    channelDescription: 'Notifications of the integration test',
+  ),
+);
+
+/// Waits until the notification [id] is active ([active] true) or gone.
+Future<void> _waitForActive(
+  FlutterLocalNotificationsPlugin plugin,
+  int id,
+  bool active,
+) async {
+  final Stopwatch stopwatch = Stopwatch()..start();
+  List<int> ids = <int>[];
+  while (stopwatch.elapsed < const Duration(seconds: 10)) {
+    ids = <int>[
+      for (final ActiveNotification n in await plugin.getActiveNotifications())
+        if (n.id != null) n.id!,
+    ];
+    if (ids.contains(id) == active) {
+      return;
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+  }
+  fail(
+    'Notification $id is ${active ? 'not active' : 'still active'} after '
+    '10 s. Active notifications: $ids',
+  );
 }
