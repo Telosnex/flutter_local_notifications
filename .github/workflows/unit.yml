@@ -44,7 +44,10 @@ jobs:
       - uses: Telosnex/telosnex_ci_tools/actions/lint@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
       # melos bootstrap runs pub get in every package and example, with
       # pubspec_overrides.yaml so that they use the packages of this commit.
-      - run: dart pub get && dart run melos bootstrap
+      # flutter (not dart) pub get first: it downloads the SDK's artifacts.
+      # melos runs its pub gets in parallel, and on a fresh SDK they race
+      # for that download ("could not find package sky_engine").
+      - run: flutter pub get && dart run melos bootstrap
       # In each package, so dart format reads its language version.
       - name: Check formatting
         run: |

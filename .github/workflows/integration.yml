@@ -81,7 +81,10 @@ jobs:
         with:
           persist-credentials: false
       - uses: Telosnex/telosnex_ci_tools/actions/setup-flutter@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
-      - run: dart pub get && dart run melos bootstrap
+      # flutter (not dart) pub get first: it downloads the SDK's artifacts.
+      # melos runs its pub gets in parallel, and on a fresh SDK they race
+      # for that download ("could not find package sky_engine").
+      - run: flutter pub get && dart run melos bootstrap
       - uses: Telosnex/telosnex_ci_tools/actions/watch@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
         with:
           idle-minutes: '15'
@@ -99,7 +102,10 @@ jobs:
         with:
           persist-credentials: false
       - uses: Telosnex/telosnex_ci_tools/actions/setup-flutter@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
-      - run: dart pub get && dart run melos bootstrap
+      # flutter (not dart) pub get first: it downloads the SDK's artifacts.
+      # melos runs its pub gets in parallel, and on a fresh SDK they race
+      # for that download ("could not find package sky_engine").
+      - run: flutter pub get && dart run melos bootstrap
       - name: Build the plugin DLL for the Dart tests
         shell: cmd
         working-directory: flutter_local_notifications_windows
@@ -125,7 +131,10 @@ jobs:
         with:
           persist-credentials: false
       - uses: Telosnex/telosnex_ci_tools/actions/setup-flutter@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
-      - run: dart pub get && dart run melos bootstrap
+      # flutter (not dart) pub get first: it downloads the SDK's artifacts.
+      # melos runs its pub gets in parallel, and on a fresh SDK they race
+      # for that download ("could not find package sky_engine").
+      - run: flutter pub get && dart run melos bootstrap
       - name: Build applesimutils 0.9.12
         run: |
           git clone -q --depth 1 --branch 0.9.12 --recurse-submodules --shallow-submodules \
@@ -165,7 +174,10 @@ jobs:
           persist-credentials: false
       - uses: Telosnex/telosnex_ci_tools/actions/setup-flutter@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
       - run: echo "JAVA_HOME=$JAVA_HOME_21_X64" >> "$GITHUB_ENV"
-      - run: dart pub get && dart run melos bootstrap
+      # flutter (not dart) pub get first: it downloads the SDK's artifacts.
+      # melos runs its pub gets in parallel, and on a fresh SDK they race
+      # for that download ("could not find package sky_engine").
+      - run: flutter pub get && dart run melos bootstrap
       - run: flutter build apk --debug
         working-directory: flutter_local_notifications/example
       - uses: Telosnex/telosnex_ci_tools/actions/android-emulator@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
