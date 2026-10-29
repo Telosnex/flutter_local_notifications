@@ -20,11 +20,15 @@ void main() {
   final WebFlutterLocalNotificationsPlugin plugin =
       WebFlutterLocalNotificationsPlugin();
 
-  testWidgets('initialize() registers the service worker', (
+  // On a first visit the service worker is still installing when register()
+  // resolves; initialize() waits until it is active, so show() works at once.
+  testWidgets('show() works right after initialize()', (
     WidgetTester tester,
   ) async {
     expect(WebFlutterLocalNotificationsPlugin.isSupported, isTrue);
     expect(await plugin.initialize(), isTrue);
+    await plugin.show(id: 1, title: 'Integration test', body: 'First');
+    await plugin.cancel(id: 1);
   });
 
   testWidgets('the notification permission is granted', (
