@@ -56,3 +56,36 @@ jobs:
           run: |
             dbus-run-session -- xvfb-run -a \
               flutter test integration_test/linux_test.dart -d linux -r expanded
+
+  desktop-linux-arm64:
+    name: Linux ARM64
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: Telosnex/telosnex_ci_tools/actions/setup-flutter@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
+      - name: Install Linux build and test dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libstdc++-12-dev dbus-x11 xvfb
+      - run: flutter pub get
+        working-directory: flutter_local_notifications_linux/example
+      # The plugin's default path: org.freedesktop.Notifications on D-Bus.
+      - uses: Telosnex/telosnex_ci_tools/actions/watch@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
+        with:
+          working-directory: flutter_local_notifications_linux/example
+          run: |
+            dbus-run-session -- xvfb-run -a \
+              flutter test integration_test/linux_test.dart -d linux -r expanded
+      # The Flatpak path: the notification portal on D-Bus.
+      - uses: Telosnex/telosnex_ci_tools/actions/watch@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
+        env:
+          FLUTTER_LOCAL_NOTIFICATIONS_PORTAL: '1'
+        with:
+          working-directory: flutter_local_notifications_linux/example
+          run: |
+            dbus-run-session -- xvfb-run -a \
+              flutter test integration_test/linux_test.dart -d linux -r expanded
