@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
@@ -140,6 +141,7 @@ class WebFlutterLocalNotificationsPlugin
       if (_registration == null) {
         throw StateError('Failed to register service worker');
       }
+      await _waitUntilActive(_registration!);
 
       // Subscribe to messages from the service worker
       serviceWorker.onmessage = _handleNotificationClick.toJS;
@@ -152,6 +154,45 @@ class WebFlutterLocalNotificationsPlugin
         name: 'flutter_local_notifications_web',
       );
       return false;
+    }
+  }
+
+  /// Waits until the worker of [registration] is active.
+  ///
+  /// On a first visit, register() resolves while the new worker is still
+  /// installing, and show() needs an active worker.
+  /// navigator.serviceWorker.ready cannot be used: it waits for a
+  /// registration whose scope covers the page, and this worker's scope is its
+  /// assets folder.
+  static Future<void> _waitUntilActive(
+    ServiceWorkerRegistration registration,
+  ) async {
+    final ServiceWorker? worker =
+        registration.installing ?? registration.waiting;
+    if (registration.active != null || worker == null) {
+      return;
+    }
+    final Completer<void> activated = Completer<void>();
+    void onStateChange([Event? _]) {
+      if (activated.isCompleted) {
+        return;
+      }
+      if (worker.state == 'activated') {
+        activated.complete();
+      } else if (worker.state == 'redundant') {
+        activated.completeError(
+          StateError('The service worker was discarded before it activated'),
+        );
+      }
+    }
+
+    final JSFunction listener = onStateChange.toJS;
+    worker.addEventListener('statechange', listener);
+    onStateChange();
+    try {
+      await activated.future;
+    } finally {
+      worker.removeEventListener('statechange', listener);
     }
   }
 

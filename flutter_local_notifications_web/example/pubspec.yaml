@@ -1,0 +1,28 @@
+name: flutter_local_notifications_web_example
+description: Integration tests of flutter_local_notifications_web in a browser.
+publish_to: none
+
+environment:
+  sdk: ^3.10.0
+  flutter: ">=3.38.1"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_local_notifications_web:
+    path: ../
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_local_notifications_platform_interface: ^12.0.0
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  # Keeps the browser console and checks every test's result. Pinned to the
+  # same tag as the telosnex_ci_tools actions in .github/workflows.
+  telosnex_web_test:
+    git:
+      url: https://github.com/Telosnex/telosnex_ci_tools.git
+      path: packages/telosnex_web_test
+      ref: v0.5.3

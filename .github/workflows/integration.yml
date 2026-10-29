@@ -20,15 +20,21 @@ defaults:
   run:
     shell: bash
 
+# Android, iOS and macOS run flutter_local_notifications/example's
+# integration_test/flutter_local_notifications_test.dart. Linux, Windows and
+# web run the example of their own package. The jobs that use the main
+# example run melos bootstrap first: its pubspec_overrides.yaml files make the
+# example use the packages of this commit, not the published ones.
 jobs:
-  # The example app's integration test on the Linux runner. The test talks to
-  # a fake notification server and a fake portal on the session bus, so it
-  # runs under dbus-run-session, and the window under xvfb-run.
+  # The Linux example's integration test. The test talks to a fake
+  # notification server and a fake portal on the session bus, so it runs
+  # under dbus-run-session, and the window under xvfb-run. The jobs share the
+  # steps of the first (YAML anchor).
   desktop-linux-x64:
     name: Linux x64
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    steps:
+    steps: &linux_steps
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -57,35 +63,201 @@ jobs:
             dbus-run-session -- xvfb-run -a \
               flutter test integration_test/linux_test.dart -d linux -r expanded
 
+  # The Raspberry Pi's architecture.
   desktop-linux-arm64:
     name: Linux ARM64
     runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    steps: *linux_steps
+
+  # On macOS the ad-hoc signed test app is never authorized to show
+  # notifications; the test skips those cases with the reason.
+  desktop-macos-arm64:
+    name: macOS ARM64
+    runs-on: macos-26
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: Telosnex/telosnex_ci_tools/actions/setup-flutter@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
-      - name: Install Linux build and test dependencies
+      # flutter (not dart) pub get first: it downloads the SDK's artifacts.
+      # melos runs its pub gets in parallel, and on a fresh SDK they race
+      # for that download ("could not find package sky_engine").
+      - run: flutter pub get && dart run melos bootstrap
+      - uses: Telosnex/telosnex_ci_tools/actions/watch@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
+        with:
+          idle-minutes: '15'
+          working-directory: flutter_local_notifications/example
+          run: flutter test integration_test/flutter_local_notifications_test.dart -d macos -r expanded
+
+  # The Windows package's Dart tests use the plugin DLL that build.bat builds
+  # (test_on: windows), then the Windows example's integration test.
+  desktop-windows-x64:
+    name: Windows x64
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The example's build paths pass Windows' 260-character limit under
+      # D:\a\flutter_local_notifications\flutter_local_notifications. A drive
+      # letter for the checkout keeps them short.
+      - uses: Telosnex/telosnex_ci_tools/actions/setup-flutter@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
+      # In the checkout itself: in W: melos does not find its installation.
+      # pubspec_overrides.yaml has relative paths, so they work in W: too.
+      - run: flutter pub get && dart run melos bootstrap
+      - name: 'Map the checkout to W:'
+        shell: cmd
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq clang cmake ninja-build pkg-config \
-            libgtk-3-dev liblzma-dev libstdc++-12-dev dbus-x11 xvfb
-      - run: flutter pub get
-        working-directory: flutter_local_notifications_linux/example
-      # The plugin's default path: org.freedesktop.Notifications on D-Bus.
+          subst W: "%GITHUB_WORKSPACE%"
+      - name: Build the plugin DLL for the Dart tests
+        shell: cmd
+        working-directory: W:\flutter_local_notifications_windows
+        run: build.bat
+      - name: Test flutter_local_notifications_windows
+        working-directory: W:\flutter_local_notifications_windows
+        run: flutter test -j 1 -r expanded
       - uses: Telosnex/telosnex_ci_tools/actions/watch@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
         with:
-          working-directory: flutter_local_notifications_linux/example
-          run: |
-            dbus-run-session -- xvfb-run -a \
-              flutter test integration_test/linux_test.dart -d linux -r expanded
-      # The Flatpak path: the notification portal on D-Bus.
-      - uses: Telosnex/telosnex_ci_tools/actions/watch@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
+          idle-minutes: '15'
+          working-directory: W:\flutter_local_notifications_windows\example
+          run: flutter test integration_test/windows_test.dart -d windows -r expanded
+
+  # applesimutils grants the notification permission before the app is
+  # installed: simctl privacy has no notifications service. Built from its
+  # tag, which the commit check pins.
+  ios:
+    name: iOS ARM64 simulator
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: Telosnex/telosnex_ci_tools/actions/setup-flutter@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
+      # flutter (not dart) pub get first: it downloads the SDK's artifacts.
+      # melos runs its pub gets in parallel, and on a fresh SDK they race
+      # for that download ("could not find package sky_engine").
+      - run: flutter pub get && dart run melos bootstrap
+      - name: Build applesimutils 0.9.12
+        run: |
+          git clone -q --depth 1 --branch 0.9.12 \
+            https://github.com/wix/AppleSimulatorUtils.git "$RUNNER_TEMP/asu"
+          cd "$RUNNER_TEMP/asu"
+          test "$(git rev-parse HEAD)" = 73f9c36afd5208e2d71be1150e0c9bd26ac1ca71
+          # The submodules' URLs are SSH; the runner has no SSH key.
+          git -c url."https://github.com/".insteadOf="git@github.com:" \
+            submodule update --init --recursive --depth 1
+          xcodebuild build -quiet -project applesimutils/applesimutils.xcodeproj \
+            -scheme applesimutils -configuration Release -derivedDataPath ./build \
+            BUILD_DIR=../build/Build/Products CODE_SIGNING_REQUIRED=NO
+          echo "$RUNNER_TEMP/asu/build/Build/Products/Release" >> "$GITHUB_PATH"
+      - uses: Telosnex/telosnex_ci_tools/actions/ios-simulator-boot@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
+        id: simulator
+      - name: Grant the notification permission
         env:
-          FLUTTER_LOCAL_NOTIFICATIONS_PORTAL: '1'
+          UDID: ${{ steps.simulator.outputs.udid }}
+        run: |
+          applesimutils --byId "$UDID" \
+            --bundle com.dexterous.flutterLocalNotificationsExample \
+            --setPermissions notifications=YES
+      - uses: Telosnex/telosnex_ci_tools/actions/ios-flutter-test@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
         with:
-          working-directory: flutter_local_notifications_linux/example
+          target: integration_test/flutter_local_notifications_test.dart
+          udid: ${{ steps.simulator.outputs.udid }}
+          working-directory: flutter_local_notifications/example
+          idle-minutes: '15'
+          artifact-name: ios-logs
+
+  # The APK is built before the emulator boots, then installed so that
+  # POST_NOTIFICATIONS can be granted; flutter test's reinstall keeps it.
+  android:
+    name: Android x64 emulator
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: Telosnex/telosnex_ci_tools/actions/setup-flutter@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
+      - run: echo "JAVA_HOME=$JAVA_HOME_21_X64" >> "$GITHUB_ENV"
+      # flutter (not dart) pub get first: it downloads the SDK's artifacts.
+      # melos runs its pub gets in parallel, and on a fresh SDK they race
+      # for that download ("could not find package sky_engine").
+      - run: flutter pub get && dart run melos bootstrap
+      - run: flutter build apk --debug
+        working-directory: flutter_local_notifications/example
+      - uses: Telosnex/telosnex_ci_tools/actions/android-emulator@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
+        id: emulator
+        with:
+          api-level: '35'
+      - name: Install the app and grant POST_NOTIFICATIONS
+        working-directory: flutter_local_notifications/example
+        run: |
+          adb install -r -t build/app/outputs/flutter-apk/app-debug.apk
+          adb shell pm grant com.dexterous.flutter_local_notifications_example \
+            android.permission.POST_NOTIFICATIONS
+      - uses: Telosnex/telosnex_ci_tools/actions/watch@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
+        with:
+          idle-minutes: '10'
+          working-directory: flutter_local_notifications/example
           run: |
-            dbus-run-session -- xvfb-run -a \
-              flutter test integration_test/linux_test.dart -d linux -r expanded
+            flutter test integration_test/flutter_local_notifications_test.dart \
+              -d ${{ steps.emulator.outputs.serial }} -r expanded
+      - if: failure() || cancelled()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-emulator-logs
+          path: |
+            ${{ steps.emulator.outputs.log }}
+            ${{ steps.emulator.outputs.logcat }}
+          if-no-files-found: ignore
+
+  # The web example in Chrome, through web-driver's chromedriver and
+  # telosnex_web_test's driver. Chrome starts with a profile whose
+  # Preferences allow notifications, so requestPermission() grants without a
+  # prompt. NativeNotifications is off: Chrome's own notification center keeps
+  # the notifications, and getNotifications() lists them. The jobs share the
+  # steps of the first (YAML anchor).
+  web-linux-chrome-dart2js:
+    name: Web Linux x64 Chrome dart2js
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      WASM: ''
+    steps: &web_steps
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: Telosnex/telosnex_ci_tools/actions/setup-flutter@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
+      - run: flutter pub get
+        working-directory: flutter_local_notifications_web/example
+      - name: Create a Chrome profile that allows notifications
+        run: |
+          profile="$RUNNER_TEMP/chrome-profile"
+          mkdir -p "$profile/Default"
+          echo '{"profile":{"default_content_setting_values":{"notifications":1}}}' \
+            > "$profile/Default/Preferences"
+          echo "CHROME_PROFILE=$profile" >> "$GITHUB_ENV"
+      - uses: Telosnex/telosnex_ci_tools/actions/web-driver@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
+        with:
+          browser: chrome
+          artifact-name: web-chrome-${{ env.WASM == '' && 'dart2js' || 'dart2wasm' }}-logs
+          working-directory: flutter_local_notifications_web/example
+          require-result: '.telosnexWebTestSummary.passed == 3 and .telosnexWebTestSummary.failed == 0'
+          run: |
+            flutter drive --release -d web-server --browser-name chrome $WASM \
+              --web-browser-flag="--user-data-dir=$CHROME_PROFILE" \
+              --web-browser-flag=--disable-features=NativeNotifications,SystemNotifications \
+              --driver test_driver/integration_test.dart \
+              --target integration_test/web_test.dart
+
+  web-linux-chrome-dart2wasm:
+    name: Web Linux x64 Chrome dart2wasm
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      WASM: --wasm
+    steps: *web_steps

@@ -2,7 +2,6 @@ name: Unit
 
 on:
   pull_request:
-    branches: [master]
   push:
     # ci/** branches run it too: a new workflow cannot be started by hand
     # before it is on the default branch.
@@ -20,26 +19,68 @@ defaults:
   run:
     shell: bash
 
+env:
+  # Every package of the monorepo, with its example.
+  PACKAGES: >-
+    flutter_local_notifications_platform_interface
+    flutter_local_notifications
+    flutter_local_notifications_linux
+    flutter_local_notifications_web
+    flutter_local_notifications_windows
+
 jobs:
+  # The Dart tests of every package, and the plugin's Android JUnit tests.
+  # The Windows package's tests run on Windows (test_on: windows): they are in
+  # the Windows x64 job of integration.yml.
   unit:
     name: Unit
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: Telosnex/telosnex_ci_tools/actions/setup-flutter@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
       - uses: Telosnex/telosnex_ci_tools/actions/lint@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
-      - run: flutter pub get
+      # melos bootstrap runs pub get in every package and example, with
+      # pubspec_overrides.yaml so that they use the packages of this commit.
+      # flutter (not dart) pub get first: it downloads the SDK's artifacts.
+      # melos runs its pub gets in parallel, and on a fresh SDK they race
+      # for that download ("could not find package sky_engine").
+      - run: flutter pub get && dart run melos bootstrap
+      # In each package, so dart format reads its language version.
+      - name: Check formatting
+        run: |
+          for p in $PACKAGES; do
+            echo "::group::$p"
+            (cd "$p" && git ls-files '*.dart' | xargs dart format --output=none --set-exit-if-changed)
+            echo "::endgroup::"
+          done
+      - name: Analyze
+        run: |
+          for p in $PACKAGES; do
+            echo "::group::$p"
+            (cd "$p" && flutter analyze --fatal-infos)
+            echo "::endgroup::"
+          done
+      - name: Test flutter_local_notifications_platform_interface
+        working-directory: flutter_local_notifications_platform_interface
+        run: flutter test -r expanded
+      - name: Test flutter_local_notifications
+        working-directory: flutter_local_notifications
+        run: flutter test -r expanded
+      - name: Test flutter_local_notifications_linux
         working-directory: flutter_local_notifications_linux
-      - run: flutter pub get
-        working-directory: flutter_local_notifications_linux/example
-      # Only the package this CI tests: the monorepo has other packages. Run
-      # in the package, so dart format reads its language version.
-      - run: git ls-files '*.dart' | xargs dart format --output=none --set-exit-if-changed
-        working-directory: flutter_local_notifications_linux
-      - run: flutter analyze --fatal-infos
-        working-directory: flutter_local_notifications_linux
-      - run: flutter test -r expanded
-        working-directory: flutter_local_notifications_linux
+        run: flutter test -r expanded
+      - name: Test flutter_local_notifications_web in Chrome
+        working-directory: flutter_local_notifications_web
+        run: flutter test -r expanded --platform chrome
+      # The JUnit tests of the plugin's Android code, in the example's Gradle
+      # project. --config-only writes the Gradle files without building.
+      - name: Test the Android code (JUnit)
+        working-directory: flutter_local_notifications/example
+        run: |
+          export JAVA_HOME="$JAVA_HOME_21_X64"
+          flutter build apk --config-only
+          cd android
+          ./gradlew :flutter_local_notifications:testDebugUnitTest --console=plain

@@ -7,6 +7,9 @@ packages:
   - flutter_local_notifications_web
   - flutter_local_notifications_platform_interface
   - flutter_local_notifications/example/
+  - flutter_local_notifications_linux/example/
+  - flutter_local_notifications_web/example/
+  - flutter_local_notifications_windows/example/
 
 command:
   bootstrap:
