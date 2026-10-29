@@ -104,13 +104,14 @@ jobs:
       # The example's build paths pass Windows' 260-character limit under
       # D:\a\flutter_local_notifications\flutter_local_notifications. A drive
       # letter for the checkout keeps them short.
+      - uses: Telosnex/telosnex_ci_tools/actions/setup-flutter@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
+      # In the checkout itself: in W: melos does not find its installation.
+      # pubspec_overrides.yaml has relative paths, so they work in W: too.
+      - run: flutter pub get && dart run melos bootstrap
       - name: 'Map the checkout to W:'
         shell: cmd
         run: |
           subst W: "%GITHUB_WORKSPACE%"
-      - uses: Telosnex/telosnex_ci_tools/actions/setup-flutter@cba77fc0d4330f1bef81193c53cd7dd976f0ebcf # v0.5.3
-      - run: flutter pub get && dart run melos bootstrap
-        working-directory: 'W:\'
       - name: Build the plugin DLL for the Dart tests
         shell: cmd
         working-directory: W:\flutter_local_notifications_windows

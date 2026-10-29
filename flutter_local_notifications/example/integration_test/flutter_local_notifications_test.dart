@@ -10,8 +10,14 @@ void main() {
       AndroidInitializationSettings('app_icon');
   const IOSInitializationSettings initializationSettingsIOS =
       IOSInitializationSettings();
+  // macOS has no way to grant the permission without a user (see
+  // _macOSNotAuthorized), so the tests do not request it there.
   const DarwinInitializationSettings initializationSettingsMacOS =
-      DarwinInitializationSettings();
+      DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      );
   final LinuxInitializationSettings initializationSettingsLinux =
       LinuxInitializationSettings(
         defaultActionName: 'Open notification',
@@ -224,10 +230,11 @@ void main() {
 
 /// Why the notification tests are skipped on macOS.
 const String _macOSNotAuthorized =
-    'On macOS, usernoted rejects the ad-hoc signed test app ("Failed to '
-    'validate ... for use with identifier"), so it is never authorized: '
-    'initialize() returns false and nothing is delivered. Showing needs an '
-    'app signed with a development team.';
+    'macOS cannot grant the notification permission without a user: there is '
+    'no simctl or applesimutils for it. On a CI runner, requestAuthorization '
+    'waits for a prompt nobody answers. Locally, usernoted rejects the ad-hoc '
+    'signed test app ("Failed to validate ... for use with identifier"). '
+    'Unauthorized, nothing is delivered.';
 
 const NotificationDetails _details = NotificationDetails(
   android: AndroidNotificationDetails(
