@@ -76,7 +76,7 @@ jobs:
     name: macOS ARM64
     runs-on: macos-26
     timeout-minutes: 45
-    steps: &macos_steps
+    steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -94,7 +94,7 @@ jobs:
     name: Windows x64
     runs-on: windows-2025
     timeout-minutes: 45
-    steps:
+    steps: &windows_steps
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -122,6 +122,12 @@ jobs:
           working-directory: W:\flutter_local_notifications_windows\example
           run: flutter test integration_test/windows_test.dart -d windows -r expanded
 
+  desktop-windows-arm64:
+    name: Windows ARM64
+    runs-on: windows-11-arm
+    timeout-minutes: 45
+    steps: *windows_steps
+
   # applesimutils grants the notification permission before the app is
   # installed: simctl privacy has no notifications service. Built from its
   # tag, which the commit check pins.
@@ -145,7 +151,7 @@ jobs:
           cd "$RUNNER_TEMP/asu"
           test "$(git rev-parse HEAD)" = 73f9c36afd5208e2d71be1150e0c9bd26ac1ca71
           # The submodules' URLs are SSH; the runner has no SSH key.
-          git -c url."https://github.com/".insteadOf="git@github.com:" \
+          git -c 'url.https://github.com/.insteadOf=git@github.com:' \
             submodule update --init --recursive --depth 1
           xcodebuild build -quiet -project applesimutils/applesimutils.xcodeproj \
             -scheme applesimutils -configuration Release -derivedDataPath ./build \
