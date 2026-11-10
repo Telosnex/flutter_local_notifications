@@ -6,7 +6,7 @@ sources:
   # commit is a week old.
   - name: MaikuB/flutter_local_notifications
     branch: https://github.com/MaikuB/flutter_local_notifications
-    pin: 325d98faabbe9eed083d02beea38b439bc45f2a6
+    pin: ff070b98f2c919ff8feed75135ae794406ed689d
     lag_days: 7
     # The packages that the app takes from this fork.
     paths: [flutter_local_notifications_linux, flutter_local_notifications_web]

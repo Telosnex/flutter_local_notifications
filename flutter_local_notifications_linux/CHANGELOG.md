@@ -1,3 +1,8 @@
+## [9.0.0]
+
+* **Breaking change** bumped minimum Flutter SDK requirement to 3.44.0 and Dart SDK requirement to 3.12.0
+* Bumped allowed `dbus` dependency version constraints to `>=0.7.8 <0.9.0`
+
 ## [8.0.2]
 
 * Bumped allowed `dbus` dependency version constraints to `>=0.7.8 <0.9.0`
