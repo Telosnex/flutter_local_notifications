@@ -1,6 +1,13 @@
 analyzer:
   exclude:
     - lib/generated_plugin_registrant.dart
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
 linter:
   rules:
     - always_declare_return_types
