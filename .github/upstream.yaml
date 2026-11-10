@@ -1,0 +1,12 @@
+# Upstream sources, checked daily by the Upstream watch workflow
+# (telosnex_ci_tools, lib/src/upstream.dart). Set `seen` to skip an update.
+sources:
+  # The repository this one is a fork of. The pin is the last upstream commit
+  # merged here: update it with each merge. Alert once the oldest unmerged
+  # commit is a week old.
+  - name: MaikuB/flutter_local_notifications
+    branch: https://github.com/MaikuB/flutter_local_notifications
+    pin: 325d98faabbe9eed083d02beea38b439bc45f2a6
+    lag_days: 7
+    # The packages that the app takes from this fork.
+    paths: [flutter_local_notifications_linux, flutter_local_notifications_web]
