@@ -11,6 +11,10 @@ dependencies:
     sdk: flutter
   flutter_local_notifications_web:
     path: ../
+  # The generated web plugin registrant imports it; the 2.0.0 package no
+  # longer depends on it.
+  flutter_web_plugins:
+    sdk: flutter
 
 dev_dependencies:
   flutter_lints: ^6.0.0
