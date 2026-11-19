@@ -237,13 +237,28 @@ jobs:
       - uses: Telosnex/telosnex_ci_tools/actions/setup-flutter@0ab334b66d7bb8ff0f436b8e9739eb014ab35b79 # v0.5.24
       - run: flutter pub get
         working-directory: flutter_local_notifications_web/example
-      - name: Create a Chrome profile that allows notifications
+      - name: Configure Chrome for notification tests
         run: |
           profile="$RUNNER_TEMP/chrome-profile"
           mkdir -p "$profile/Default"
           echo '{"profile":{"default_content_setting_values":{"notifications":1}}}' \
             > "$profile/Default/Preferences"
           echo "CHROME_PROFILE=$profile" >> "$GITHUB_ENV"
+          # Flutter drive adds --disable-notifications to its Chrome options.
+          # That removes the API under test; preserve all the other options.
+          chrome="$RUNNER_TEMP/chrome-with-notifications"
+          cat > "$chrome" <<'SH'
+          #!/usr/bin/env bash
+          args=()
+          for arg in "$@"; do
+            if [[ "$arg" != --disable-notifications ]]; then
+              args+=("$arg")
+            fi
+          done
+          exec google-chrome "${args[@]}"
+          SH
+          chmod +x "$chrome"
+          echo "NOTIFICATION_TEST_CHROME=$chrome" >> "$GITHUB_ENV"
       - uses: Telosnex/telosnex_ci_tools/actions/web-driver@0ab334b66d7bb8ff0f436b8e9739eb014ab35b79 # v0.5.24
         with:
           browser: chrome
@@ -252,6 +267,7 @@ jobs:
           require-result: '.telosnexWebTestSummary.passed == 3 and .telosnexWebTestSummary.failed == 0'
           run: |
             flutter drive --release -d web-server --browser-name chrome $WASM \
+              --chrome-binary="$NOTIFICATION_TEST_CHROME" \
               --web-browser-flag="--user-data-dir=$CHROME_PROFILE" \
               --web-browser-flag=--disable-features=NativeNotifications,SystemNotifications \
               --driver test_driver/integration_test.dart \
