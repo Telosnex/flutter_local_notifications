@@ -1,3 +1,5 @@
+// Keep the Flutter SDK export for compatibility with older SDKs.
+// ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 
 // The integration tests drive the plugin without UI. This app only gives the
