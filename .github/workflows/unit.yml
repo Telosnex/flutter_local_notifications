@@ -73,6 +73,8 @@ jobs:
         working-directory: flutter_local_notifications_linux
         run: flutter test -r expanded
       - name: Test flutter_local_notifications_web in Chrome
+        env:
+          CHROME_EXECUTABLE: ${{ github.workspace }}/.github/scripts/chrome-with-notifications.sh
         working-directory: flutter_local_notifications_web
         run: flutter test -r expanded --platform chrome
       # The JUnit tests of the plugin's Android code, in the example's Gradle
