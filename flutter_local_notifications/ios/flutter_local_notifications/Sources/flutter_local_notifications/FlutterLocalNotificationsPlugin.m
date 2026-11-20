@@ -552,7 +552,8 @@ static FlutterError *getFlutterError(NSError *error) {
     providesAppNotificationSettings:(bool)providesAppNotificationSettings
                              result:(FlutterResult _Nonnull)result {
   if (!soundPermission && !alertPermission && !badgePermission &&
-      !criticalPermission && !providesAppNotificationSettings) {
+      !provisionalPermission && !criticalPermission &&
+      !providesAppNotificationSettings) {
     result(@NO);
     return;
   }
@@ -875,7 +876,8 @@ static FlutterError *getFlutterError(NSError *error) {
   NSString *timeZoneName = arguments[TIME_ZONE_NAME];
 
   NSNumber *matchDateComponents = arguments[MATCH_DATE_TIME_COMPONENTS];
-  NSCalendar *calendar = [NSCalendar currentCalendar];
+  NSCalendar *calendar = [[NSCalendar alloc]
+      initWithCalendarIdentifier:NSCalendarIdentifierGregorian];
   NSTimeZone *timezone = [NSTimeZone timeZoneWithName:timeZoneName];
   NSISO8601DateFormatter *dateFormatter = [[NSISO8601DateFormatter alloc] init];
   [dateFormatter setTimeZone:timezone];

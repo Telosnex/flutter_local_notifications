@@ -255,6 +255,8 @@ void main() {
     });
   });
 
+  // Exercise browser-created Notifications here. The fork's Chrome launcher
+  // removes Flutter's --disable-notifications flag so the API is available.
   group('JSNotificationUtils', () {
     test('id parses tag as integer', () {
       // Notification constructor requires a title; tag is set via options

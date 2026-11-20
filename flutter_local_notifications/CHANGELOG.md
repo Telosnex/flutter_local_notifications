@@ -1,3 +1,12 @@
+## [23.0.3]
+
+* [iOS][macOS] fixed notification trigger scheduling to use the Gregorian calendar regardless of the device's current calendar. Thanks to the PR from [Sagar Ghag](https://github.com/GhagSagar23)
+
+## [23.0.2]
+
+* [iOS] fixed issue where provisional notification permission request was not shown when no other permission was requested. Thanks to the PR from [Bilal Aksoy](https://github.com/BiAksoy)
+* [Android] fixed issue [#2864](https://github.com/MaikuB/flutter_local_notifications/issues/2864)where the deprecated `AlarmManagerCompat.setExact()` method was being used. Thanks to the PR from [Code Lover](https://github.com/MarkHo-0)
+
 ## [23.0.1]
 
 * [Android] fixed issue where cancelling a notification did not work for tag-based notifications when an action with `showsUserInterface` set to `true` was invoked. Thanks to the PR from [Yokota Yuki](https://github.com/y2q-actionman)
